@@ -1,0 +1,118 @@
+#include <SPI.h>
+#include <SD.h>
+#include <Wire.h>
+#include "RTClib.h"
+RTC_DS1307 rtc;
+
+const int selectPins[3] = {2, 3, 4}; // S0~2, S1~3, S2~4
+const int zOutput = 5;
+const int zInput = A0; // Connect common (Z) to A0 (analog input)
+const int chipSelect = 10;
+
+File dataFile;
+
+
+
+void setup()
+{
+
+  Serial.begin(9600); // Initialize the serial port
+
+  Serial.println ("Booting SD card");
+  if (!SD.begin(chipSelect)) {
+    Serial.println("Card failed, or not present");
+    return;
+  }
+  else  if (! rtc.begin()) {
+    Serial.println("Couldn't find RTC");
+    while (1);
+  }
+  if (! rtc.isrunning()) {
+    Serial.println("RTC is NOT running!");
+    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  }
+  Serial.println("SD card initialized");
+
+dataFile = SD.open("datalog.txt", FILE_WRITE);
+ if (dataFile) {
+  dataFile.println("Data format for sensors");
+  dataFile.println("--time--\tY0\tY1\tY2\tY3\tY4\tY5\tY6\tY7");
+  dataFile.println("--------\t---\t---\t---\t---\t---\t---\t---\t---");
+   dataFile.close();
+ }
+  else
+  {
+    Serial.println("Error opening file in loop.");
+  }
+
+
+  // Set up the select pins as outputs:
+  for (int i = 0; i < 3; i++)
+  {
+    pinMode(selectPins[i], OUTPUT);
+    digitalWrite(selectPins[i], HIGH);
+  }
+  pinMode(zInput, INPUT); // Set up Z as an input
+
+  // Print the header:
+
+  Serial.println("Data format for sensors");
+  Serial.println("--time--\tY0\tY1\tY2\tY3\tY4\tY5\tY6\tY7");
+  Serial.println("--------\t---\t---\t---\t---\t---\t---\t---\t---");
+
+
+}
+
+void loop()
+{
+
+  DateTime now = rtc.now();
+ dataFile = SD.open("datalog.txt", FILE_WRITE);
+ 
+ if (dataFile) {
+
+    Serial.print(now.hour(), DEC);
+    Serial.print(':');
+    Serial.print(now.minute(), DEC);
+    Serial.print(':');
+    Serial.print(now.second(), DEC);  
+    Serial.print("\t\t");
+    dataFile.print(now.hour(), DEC);
+    dataFile.print(':');
+    dataFile.print(now.minute(), DEC);
+    dataFile.print(':');
+    dataFile.print(now.second(), DEC);   
+    dataFile.print("\t\t");
+    // Loop through all eight pins.
+    for (byte pin = 0; pin <= 7; pin++)
+    { 
+      selectMuxPin(pin); // Select one at a time
+      int inputValue = analogRead(A0); // and read Z
+      Serial.print(String(inputValue) + "\t");
+      dataFile.print(String(inputValue) + "\t");
+    }
+    dataFile.close();
+  }
+  else
+  {
+    Serial.println("Error opening file in loop.");
+  }
+  Serial.println();
+  delay(1000);
+
+
+
+}
+
+// The selectMuxPin function sets the S0, S1, and S2 pins
+// accordingly, given a pin from 0-7.
+void selectMuxPin(byte pin)
+{
+  for (int i = 0; i < 3; i++)
+  {
+    if (pin & (1 << i))
+      digitalWrite(selectPins[i], HIGH);
+    else
+      digitalWrite(selectPins[i], LOW);
+  }
+}
